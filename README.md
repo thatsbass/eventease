@@ -1,107 +1,109 @@
-# EventEase Frontend
+# EventEase
 
-Frontend de la plateforme EventEase, dédiée à la création, la vente et l'exploitation d'événements. L'application fournit une landing page, les parcours d'authentification, la découverte d'événements, la gestion des événements organisateur et les parcours de checkout publics.
-
-## Stack
-
-- Next.js 16 avec App Router et React 19
-- TypeScript en mode strict
-- Chakra UI et Emotion pour l'interface
-- TanStack Query pour les données distantes
-- Zustand pour l'état d'authentification persisté côté client
-- Zod pour la validation des contrats API
-
-## Prérequis
-
-- Node.js 20 ou plus récent
-- npm 10 ou plus récent
-- Une API EventEase accessible depuis le navigateur
-- PostgreSQL si vous exécutez les commandes Prisma
-
-## Installation
-
-Clonez le dépôt, installez les dépendances, puis créez le fichier d'environnement local.
-
-```bash
-npm install
-cp .env.example .env.local
-```
-
-Mettez ensuite à jour au minimum `NEXT_PUBLIC_API_URL` pour viser votre API. Par défaut, l'application cherche l'API à l'adresse `http://localhost:3000/api`.
-
-## Variables d'environnement
-
-| Variable | Requise | Description |
-| --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | Oui | URL de base de l'API consommée par le client, par exemple `http://localhost:3000/api`. |
-| `NEXT_PUBLIC_FRONT_URL` | Oui | URL publique du frontend, utilisée dans les liens partagés. |
-| `NEXT_PUBLIC_API_PATH` | Compatibilité | Chemin API exposé par l'ancien module de configuration. |
-| `DICEBEAR_URL` | Non | URL de base du fournisseur d'avatars DiceBear. |
-
-Les variables préfixées par `NEXT_PUBLIC_` sont intégrées au bundle navigateur. Elles ne doivent jamais contenir de secret. Ne versionnez pas `.env.local`.
-
-## Développement
-
-```bash
-npm run dev
-```
-
-L'application est disponible sur [http://localhost:3000](http://localhost:3000).
-
-## Scripts
-
-| Commande | Description |
-| --- | --- |
-| `npm run dev` | Lance le serveur de développement avec Webpack. |
-| `npm run build` | Produit le build de production. |
-| `npm run start` | Démarre le build de production. |
-| `npm run lint` | Exécute ESLint. |
-| `npm run theme:gen` | Génère les types Chakra UI. |
-
-Les scripts Prisma requièrent un fichier `prisma/schema.prisma`. Ce schéma n'est pas présent dans ce dépôt frontend ; ajoutez-le ou exécutez ces commandes depuis le dépôt qui porte le schéma avant de les utiliser.
-
-Vérification TypeScript sans générer de fichiers :
-
-```bash
-npx tsc --noEmit
-```
+EventEase est une plateforme de gestion et de billetterie d'evenements. Elle permet aux organisateurs de publier leurs evenements et de gerer leurs billets, tandis que les participants peuvent decouvrir des evenements et acheter leurs places en ligne.
 
 ## Architecture
 
+Le projet est organise en deux applications independantes :
+
 ```text
-src/
-├── app/                 Routes et layouts Next.js
-├── components/          Composants partagés d'interface
-├── config/              Configuration applicative basée sur l'environnement
-├── features/            Fonctionnalités métier isolées par domaine
-│   ├── auth/            Authentification et état utilisateur
-│   ├── checkout/        Parcours de paiement
-│   ├── events/          Création, consultation et administration d'événements
-│   ├── landing/         Sections de la landing page
-│   ├── organizer/       Espace organisateur
-│   ├── profile/         Profil public et données associées
-│   └── settings/        Paramètres utilisateur
-├── lib/                 Clients, providers et utilitaires d'infrastructure
-└── styles/              Styles globaux
+.
+├── client/   Application web Next.js
+└── api/      API NestJS et worker de traitement asynchrone
 ```
 
-Les routes doivent rester minces : elles composent les éléments de `features`. Les appels HTTP passent par `src/lib/api/client.ts`, qui ajoute le jeton d'accès, tente un renouvellement à l'expiration et valide les réponses avec Zod.
+| Application | Stack principale | Port local |
+| --- | --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript, Chakra UI | `3000` |
+| Backend | NestJS 11, TypeScript, Prisma, PostgreSQL | `3001` |
+| Documentation API | Swagger | `http://localhost:3001/docs` |
 
-## Authentification et API
+La documentation detaillee de chaque application est disponible dans [client/README.md](client/README.md) et [api/README.md](api/README.md).
 
-Les jetons d'accès et de rafraîchissement sont conservés dans le store Zustand `eventease.auth`, côté navigateur. Toute API configurée dans `NEXT_PUBLIC_API_URL` doit donc autoriser l'origine du frontend via CORS et exposer les endpoints attendus par les fonctionnalités client, notamment le renouvellement via `POST /auth/refresh`.
+## Fonctionnalites
 
-## Qualité et contribution
+- decouverte et partage d'evenements ;
+- authentification et gestion des profils ;
+- creation et administration d'evenements ;
+- configuration des types de billets et des quotas ;
+- checkout et paiement Stripe ;
+- generation et envoi des billets par email ;
+- gestion des images et des profils organisateurs.
 
-Avant toute proposition de changement :
+## Prerequis
+
+- Node.js 20+ ;
+- npm 10+ ;
+- PostgreSQL et Redis pour executer l'ensemble de la plateforme ;
+- comptes Stripe, SMTP et Cloudinary pour les integrations concernees.
+
+## Demarrage local
+
+Installez les dependances dans chaque application :
 
 ```bash
-npx tsc --noEmit
-npm run lint
+cd api
+npm install
+cp .env.example .env
+npx prisma generate
+
+cd ../client
+npm install
+touch .env.local
 ```
 
-Gardez les modifications limitées au domaine concerné, évitez les imports transverses entre fonctionnalités et ne placez pas de secrets dans les variables `NEXT_PUBLIC_*` ni dans le dépôt.
+Configurez les variables d'environnement dans `api/.env` et `client/.env.local`, puis lancez les processus dans des terminaux distincts. Les variables frontend sont documentees dans [client/README.md](client/README.md).
 
-## Licence
+```bash
+# API
+cd api
+npm run dev
 
-Ce projet est distribué sous licence MIT. Consultez [LICENSE](./LICENSE).
+# Worker d'emails
+cd api
+npm run build
+npm run start:worker
+
+# Frontend
+cd client
+npm run dev
+```
+
+Acces locaux :
+
+- application web : `http://localhost:3000` ;
+- API : `http://localhost:3001/api` ;
+- Swagger : `http://localhost:3001/docs`.
+
+Le frontend doit pointer vers l'API avec `NEXT_PUBLIC_API_URL=http://localhost:3001/api`.
+
+## Validation
+
+Chaque application se valide depuis son propre dossier :
+
+```bash
+# Frontend
+cd client
+npm run lint
+npm run build
+
+# Backend
+cd api
+npm run lint
+npm test
+npm run test:e2e
+npm run build
+```
+
+## Organisation du code
+
+- les routes et layouts d'interface sont dans `client/src/app` ;
+- les domaines fonctionnels frontend sont dans `client/src/features` ;
+- les modules métier backend sont dans `api/src` ;
+- le schema Prisma et les migrations sont dans `api/prisma`.
+
+Les changements doivent rester limites au domaine concerne. Les secrets ne doivent jamais etre commites ni exposes dans les variables `NEXT_PUBLIC_*`.
+
+## Production
+
+Construisez et deployez le frontend et l'API comme deux applications distinctes. L'API et le worker doivent etre demarres dans des processus separes. Reportez-vous aux README de [client](client/README.md) et de [api](api/README.md) pour les variables d'environnement et les commandes propres a chaque application.
