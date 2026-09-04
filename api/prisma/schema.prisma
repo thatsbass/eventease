@@ -1,0 +1,259 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ORGANIZER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum EventCategory {
+  MUSIC
+  TECH
+  SPORTS
+  BUSINESS
+  EDUCATION
+  ART
+  COMMUNITY
+  OTHER
+}
+
+enum TicketTier {
+  standard
+  vip
+  early
+}
+
+enum TicketStatus {
+  ISSUED
+  CHECKED_IN
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum WebhookEventStatus {
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  username  String   @unique
+  password  String
+  refreshTokenHash String?
+  avatarUrl String?
+  role      UserRole @default(USER)
+  verified  Boolean  @default(false)
+  certified Boolean  @default(false)
+
+  organizerProfile OrganizerProfile?
+  orders           Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrganizerProfile {
+  id         String  @id
+  bio        String?
+  timezone   String  @default("UTC")
+  avatarUrl  String?
+  coverImage String?
+
+  user   User   @relation(fields: [id], references: [id], onDelete: Cascade)
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id              String      @id @default(cuid())
+  publicId        String      @unique
+  title           String
+  description     String?
+  category        EventCategory @default(OTHER)
+  status          EventStatus @default(DRAFT)
+  startAt         DateTime
+  endAt           DateTime?
+  timezone        String      @default("UTC")
+  location        String
+  coverImage      String?
+  capacity        Int?
+  requireApproval Boolean     @default(false)
+
+  organizerId String
+  organizer   OrganizerProfile @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  ticketTypes TicketType[]
+  tickets     Ticket[]
+  orders      Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizerId])
+  @@index([status, startAt])
+}
+
+model TicketType {
+  id          String     @id @default(cuid())
+  eventId     String
+  name        String
+  description String?
+  price       Int
+  currency    String
+  quantity    Int
+  sold        Int        @default(0)
+  tier        TicketTier @default(standard)
+
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets    Ticket[]
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model Ticket {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  eventId      String
+  ticketTypeId String
+  orderId      String
+  status       TicketStatus @default(ISSUED)
+  checkedInAt  DateTime?
+  metadata     Json?
+
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([ticketTypeId])
+  @@index([orderId])
+  @@index([status])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  eventId     String
+  buyerId     String?
+  buyerName   String
+  buyerEmail  String
+  status      OrderStatus @default(PENDING)
+  totalAmount Int
+  currency    String
+  metadata    Json?
+
+  event Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  buyer User?       @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  items OrderItem[]
+  tickets Ticket[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([buyerEmail])
+}
+
+model Payment {
+  id        String          @id @default(cuid())
+  orderId   String
+  provider  PaymentProvider @default(STRIPE)
+  status    PaymentStatus   @default(PENDING)
+  amount    Int
+  currency  String
+  metadata  Json?
+
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String? @unique
+  stripeCustomerId      String?
+  paidAt                DateTime?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model PaymentWebhookEvent {
+  id           String             @id @default(cuid())
+  provider     PaymentProvider
+  eventId      String             @unique
+  eventType    String
+  status       WebhookEventStatus @default(PROCESSING)
+  attemptCount Int                @default(1)
+  lastError    String?
+  processedAt  DateTime?
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider, status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id           String @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+  quantity     Int
+  unitPrice    Int
+  lineTotal    Int
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([ticketTypeId])
+}
+
